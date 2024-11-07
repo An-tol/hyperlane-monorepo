@@ -20,18 +20,24 @@ pub struct MerkleTreeBuilder {
 
 impl Display for MerkleTreeBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Optimization - saving root() and count() calls to variables
+        let prover_root = self.prover.root();
+        let prover_count = self.prover.count();
+        let incremental_root = self.incremental.root();
+        let incremental_count = self.incremental.count();
+        
         write!(f, "MerkleTreeBuilder {{ ")?;
         write!(
             f,
             "incremental: {{ root: {:?}, size: {} }}, ",
-            self.incremental.root(),
-            self.incremental.count()
+            incremental_root,
+            incremental_count
         )?;
         write!(
             f,
             "prover: {{ root: {:?}, size: {} }} ",
-            self.prover.root(),
-            self.prover.count()
+            prover_root,
+            prover_count
         )?;
         write!(f, "}}")?;
         Ok(())
@@ -42,12 +48,12 @@ impl Display for MerkleTreeBuilder {
 #[derive(Debug, thiserror::Error)]
 pub enum MerkleTreeBuilderError {
     /// Local tree up-to-date but root does not match signed checkpoint"
-    #[error("Prover root does not match incremental root: {prover_root}, incremental: {incremental_root}")]
+    #[error("Prover root does not match incremental root: {prover_root:?}, incremental: {incremental_root:?}")]
     MismatchedRoots {
         /// Root of prover's local merkle tree
-        prover_root: H256,
+        prover_root: String,
         /// Root of the incremental merkle tree
-        incremental_root: H256,
+        incremental_root: String,
     },
     /// MerkleTreeBuilder attempts Prover operation and receives ProverError
     #[error(transparent)]
@@ -88,15 +94,24 @@ impl MerkleTreeBuilder {
     pub async fn ingest_message_id(&mut self, message_id: H256) -> Result<()> {
         const CTX: &str = "When ingesting message id";
         debug!(?message_id, "Ingesting leaf");
-        self.prover.ingest(message_id).expect("tree full");
+
+        // Change expect to handle errors with context
+        self.prover
+            .ingest(message_id)
+            .map_err(|_| MerkleTreeBuilderError::ProverError(ProverError::TreeFull))
+            .context(CTX)?;
+
         self.incremental.ingest(message_id);
-        match self.prover.root().eq(&self.incremental.root()) {
-            true => Ok(()),
-            false => Err(MerkleTreeBuilderError::MismatchedRoots {
-                prover_root: self.prover.root(),
-                incremental_root: self.incremental.root(),
-            }),
+
+        // Simplify root checking logic
+        if self.prover.root() != self.incremental.root() {
+            return Err(MerkleTreeBuilderError::MismatchedRoots {
+                prover_root: format!("{:?}", self.prover.root()),
+                incremental_root: format!("{:?}", self.incremental.root()),
+            })
+            .context(CTX);
         }
-        .context(CTX)
+        
+        Ok(())
     }
 }
