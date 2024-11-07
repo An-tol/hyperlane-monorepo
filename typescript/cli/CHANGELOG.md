@@ -1,5 +1,20 @@
 # @hyperlane-xyz/cli
 
+## 7.0.0
+
+### Minor Changes
+
+- 836060240: Add storage based multisig ISM types
+
+### Patch Changes
+
+- Updated dependencies [f48cf8766]
+- Updated dependencies [0264f709e]
+- Updated dependencies [836060240]
+- Updated dependencies [e6f9d5c4f]
+  - @hyperlane-xyz/utils@7.0.0
+  - @hyperlane-xyz/sdk@7.0.0
+
 ## 6.0.0
 
 ### Major Changes
